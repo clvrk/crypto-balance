@@ -14,7 +14,9 @@ VERSION=0.1
 #		all, btc, eth, ltc, xlm
 #	-c | --fiat
 #		Fiat currency. Default: USD, all available values are:
-#		usd, eur
+#		USD, EUR
+#	-i | --include-fiat
+#		Include fiat currencies in total balance.
 #	-f | --api-file
 #		File to read API- & secret keys from. For an example on how this file
 #		should be formatted, have a look at the readme.
@@ -30,22 +32,32 @@ PRFX_DOWN="▾ "
 
 API_FILE="$HOME/Documents/Private/balance.txt"
 PROVIDER="binance"
+BASE_FIAT="EUR"
 
 #Parse API keys and secrets from API-file
 while read -r LINE
 do
-	REGEX="^(.+):(.+),(.+)"
+	REGEX='^(.+):(.+),(.+)'
 	if [[ $LINE =~ $REGEX ]]
 	then
 		API_KEY=${BASH_REMATCH[2]}
 		API_SECRET=${BASH_REMATCH[3]}
-		#echo "Provider: ${BASH_REMATCH[1]}"
-		#echo "API key: $API_KEY"
-		#echo "API secret: $API_SECRET"
 	fi
 done < "$API_FILE"
 
 #Parse parameters
+function calculateBalance() {
+	RESULT=0
+
+	while read -r LINE
+	do
+		RESULT=$(echo "$RESULT + $LINE" | bc)
+
+		echo "$LINE"
+	done < <(echo "$1")
+
+	echo -e "\n$RESULT"
+}
 
 #Call API
 case $PROVIDER in
@@ -69,7 +81,11 @@ case $PROVIDER in
 
 		RESPONSE=$(curl -s "${API_ENDPOINT}/api/v3/account?${QUERY_STRING}&signature=${BN_SIGNATURE}" \
 			-H "X-MBX-APIKEY: $API_KEY")
+
+		WALLETS=$(echo -n "$PRICES $RESPONSE" | jq -r -s --arg BASE_FIAT "$BASE_FIAT" '.[0] as $prices | .[1].balances[] | select ((.free | tonumber) > 0) | . as $current | $prices[] | select (.symbol == ($current.asset + $BASE_FIAT)) | (($current.free | tonumber) * (.price | tonumber))')
 		;;
 esac
+
+calculateBalance "$WALLETS"
 
 #Echo output
