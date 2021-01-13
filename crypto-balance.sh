@@ -20,9 +20,9 @@ VERSION=0.1
 #	-f | --api-file
 #		File to read API- & secret keys from. For an example on how this file
 #		should be formatted, have a look at the readme.
-#	--up
+#	--prfx-up
 #		String to pre- or append for upwards trend. Default: "▴ "
-#	--down
+#	--prfx-down
 #		String to pre- or append for downwards trend. Default: "▾ "
 
 TMPFILE="./balance.tmp"
@@ -30,9 +30,41 @@ TMPFILE="./balance.tmp"
 PRFX_UP="▴ "
 PRFX_DOWN="▾ "
 
-API_FILE="$HOME/Documents/Private/balance.txt"
-PROVIDER="binance"
-BASE_FIAT="EUR"
+#Parse command line parameters
+i=1
+while [[ -n ${!i} ]]; do
+	j=$(($i+1))
+	#echo "$i: ${!i}, val: ${!j}"
+	case ${!i} in
+		"-p") ;&
+		"--provider")
+			PROVIDER="${!j}"
+			;;
+		"-w") ;&
+		"--wallet")
+			WALLET="${!j}"
+			;;
+		"-c") ;&
+		"--fiat")
+			BASE_FIAT="${!j}"
+			;;
+		"-i") ;&
+		"--include-fiat")
+			INCLUDE_FIAT=1
+			;;
+		"-f") ;&
+		"--api-file")
+			API_FILE="${!j}"
+			;;
+		"--prfx-up")
+			PRFX_UP="${!j}"
+			;;
+		"--prfx-down")
+			PRFX_DOWN="${!j}"
+			;;
+	esac
+	i=$(($j+1))
+done
 
 #Parse API keys and secrets from API-file
 while read -r LINE
@@ -53,10 +85,10 @@ function calculateBalance() {
 	do
 		RESULT=$(echo "$RESULT + $LINE" | bc)
 
-		echo "$LINE"
+		#echo "$LINE" >&2
 	done < <(echo "$1")
 
-	echo -e "\n$RESULT"
+	echo "$RESULT"
 }
 
 #Call API
@@ -86,6 +118,17 @@ case $PROVIDER in
 		;;
 esac
 
-calculateBalance "$WALLETS"
+BALANCE=$(calculateBalance "$WALLETS")
+
+if (( $(echo "$BALANCE > $(cat $TMPFILE)" | bc) )); then
+	PRFX=$PRFX_UP
+else
+	PRFX=$PRFX_DOWN
+fi
+
+#Store previous balance to temporary file
+echo "$BALANCE" > $TMPFILE
+
+printf "%s%.2f" "${PRFX}" "${BALANCE}"
 
 #Echo output
