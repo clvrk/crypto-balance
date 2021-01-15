@@ -16,7 +16,9 @@ VERSION=0.1
 #		Fiat currency. Default: USD, all available values are:
 #		USD, EUR
 #	-i | --include-fiat
-#		Include fiat currencies in total balance.
+#		Include fiat assets in total balance.
+#	-l | --include-locked
+#		Include locked assets in total balance.
 #	-f | --api-file
 #		File to read API- & secret keys from. For an example on how this file
 #		should be formatted, have a look at the readme.
@@ -25,7 +27,12 @@ VERSION=0.1
 #	--prfx-down
 #		String to pre- or append for downwards trend. Default: "▾ "
 
-TMPFILE="./balance.tmp"
+TMPDIR="$HOME/.cache/crypto-balance"
+TMPFILE="${TMPDIR}/balance.tmp"
+
+if [[ ! -d "$TMPDIR" ]]; then
+	mkdir -p "$TMPDIR"
+fi
 
 PRFX_UP="▴ "
 PRFX_DOWN="▾ "
@@ -51,6 +58,10 @@ while [[ -n ${!i} ]]; do
 		"-i") ;&
 		"--include-fiat")
 			INCLUDE_FIAT=1
+			;;
+		"-l") ;&
+		"--include-locked")
+			INCLUDE_LOCKED=1
 			;;
 		"-f") ;&
 		"--api-file")
