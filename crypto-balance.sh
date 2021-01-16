@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Author: Clark Stühmer
 VERSION=0.1
 # Description:
@@ -125,7 +125,7 @@ case $PROVIDER in
 		RESPONSE=$(curl -s "${API_ENDPOINT}/api/v3/account?${QUERY_STRING}&signature=${BN_SIGNATURE}" \
 			-H "X-MBX-APIKEY: $API_KEY")
 
-		WALLETS=$(echo -n "$PRICES $RESPONSE" | jq -r -s --arg BASE_FIAT "$BASE_FIAT" '.[0] as $prices | .[1].balances[] | select ((.free | tonumber) > 0) | . as $current | $prices[] | select (.symbol == ($current.asset + $BASE_FIAT)) | (($current.free | tonumber) * (.price | tonumber))')
+		WALLETS=$(echo -n "$PRICES $RESPONSE" | jq -r -s --arg BASE_FIAT "$BASE_FIAT" '.[0] as $prices | .[1].balances[] | select ((.free | tonumber) > 0) | . as $current | $prices[] | select (.symbol == ($current.asset + $BASE_FIAT)) | (($current.free | tonumber) + ($current.locked | tonumber)) * (.price | tonumber)')
 		;;
 esac
 
@@ -141,5 +141,3 @@ fi
 echo "$BALANCE" > $TMPFILE
 
 printf "%s%.2f" "${PRFX}" "${BALANCE}"
-
-#Echo output
