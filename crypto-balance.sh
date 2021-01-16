@@ -12,11 +12,10 @@ VERSION=0.1
 #	-w | --wallet
 #		The wallet to parse. Available values are:
 #		all, btc, eth, ltc, xlm
-#	-c | --fiat
-#		Fiat currency. Default: USD, all available values are:
-#		USD, EUR
-#	-i | --include-fiat
-#		Include fiat assets in total balance.
+#	-c | --base
+#		Base currency. Default: USDT
+#	-i | --include-base
+#		Include base asset in total balance.
 #	-l | --include-locked
 #		Include locked assets in total balance.
 #	-f | --api-file
@@ -34,6 +33,7 @@ if [[ ! -d "$TMPDIR" ]]; then
 	mkdir -p "$TMPDIR"
 fi
 
+BASE_FIAT="USDT"
 PRFX_UP="▴ "
 PRFX_DOWN="▾ "
 
@@ -46,35 +46,42 @@ while [[ -n ${!i} ]]; do
 		"-p") ;&
 		"--provider")
 			PROVIDER="${!j}"
+			i=$(($j+1))
 			;;
 		"-w") ;&
 		"--wallet")
 			WALLET="${!j}"
+			i=$(($j+1))
 			;;
 		"-c") ;&
 		"--fiat")
 			BASE_FIAT="${!j}"
+			i=$(($j+1))
 			;;
 		"-i") ;&
-		"--include-fiat")
-			INCLUDE_FIAT=1
+		"--include-base")
+			INCLUDE_BASE=1
+			i=$j
 			;;
 		"-l") ;&
 		"--include-locked")
 			INCLUDE_LOCKED=1
+			i=$j
 			;;
 		"-f") ;&
 		"--api-file")
 			API_FILE="${!j}"
+			i=$(($j+1))
 			;;
 		"--prfx-up")
 			PRFX_UP="${!j}"
+			i=$(($j+1))
 			;;
 		"--prfx-down")
 			PRFX_DOWN="${!j}"
+			i=$(($j+1))
 			;;
 	esac
-	i=$(($j+1))
 done
 
 #Parse API keys and secrets from API-file
@@ -125,19 +132,40 @@ case $PROVIDER in
 		RESPONSE=$(curl -s "${API_ENDPOINT}/api/v3/account?${QUERY_STRING}&signature=${BN_SIGNATURE}" \
 			-H "X-MBX-APIKEY: $API_KEY")
 
-		WALLETS=$(echo -n "$PRICES $RESPONSE" | jq -r -s --arg BASE_FIAT "$BASE_FIAT" '.[0] as $prices | .[1].balances[] | select ((.free | tonumber) > 0) | . as $current | $prices[] | select (.symbol == ($current.asset + $BASE_FIAT)) | (($current.free | tonumber) + ($current.locked | tonumber)) * (.price | tonumber)')
+		WALLETS=$(echo -n "$PRICES $RESPONSE" | jq -r -s --arg BASE_FIAT "$BASE_FIAT" --arg INCLUDE_BASE "$INCLUDE_BASE" --arg INCLUDE_LOCKED "$INCLUDE_LOCKED" \
+			'.[0] as $prices | .[1].balances[] |
+			 .asset as $asset | (.free | tonumber) as $free | (.locked | tonumber) as $locked |
+			 select ($free > 0 or $locked > 0) |
+			 ($free + $locked) as $balance |
+			 if ($INCLUDE_BASE == "1" and $asset == $BASE_FIAT) then
+			 	$balance
+			 else
+			 	$prices[] |
+			 	if .symbol == $asset + $BASE_FIAT then
+					$balance * (.price | tonumber)
+			 	elif .symbol == $BASE_FIAT + $asset then
+					$balance / (.price | tonumber)
+			 	else
+					empty
+			 	end
+			end
+			')
 		;;
 esac
 
-BALANCE=$(calculateBalance "$WALLETS")
+if [[ -n $WALLETS ]]; then
+	BALANCE=$(calculateBalance "$WALLETS")
 
-if (( $(echo "$BALANCE > $(cat $TMPFILE)" | bc) )); then
-	PRFX=$PRFX_UP
+	if (( $(echo "$BALANCE > $(cat $TMPFILE)" | bc) )); then
+		PRFX=$PRFX_UP
+	else
+		PRFX=$PRFX_DOWN
+	fi
+
+	#Store previous balance to temporary file
+	echo "$BALANCE" > $TMPFILE
+
+	printf "%s%.2f" "${PRFX}" "${BALANCE}"
 else
-	PRFX=$PRFX_DOWN
+	echo -n "--"
 fi
-
-#Store previous balance to temporary file
-echo "$BALANCE" > $TMPFILE
-
-printf "%s%.2f" "${PRFX}" "${BALANCE}"
