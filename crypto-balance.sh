@@ -33,6 +33,7 @@ if [[ ! -d "$TMPDIR" ]]; then
 	mkdir -p "$TMPDIR"
 fi
 
+WALLET="all"
 BASE_FIAT="USDT"
 PRFX_UP="▴ "
 PRFX_DOWN="▾ "
@@ -101,7 +102,7 @@ function calculateBalance() {
 
 	while read -r LINE
 	do
-		RESULT=$(echo "$RESULT + $LINE" | bc)
+		RESULT=$(printf "%f+%f\n" "$RESULT" "$LINE" | bc)
 
 		#echo "$LINE" >&2
 	done < <(echo "$1")
@@ -149,7 +150,7 @@ case $PROVIDER in
 					empty
 			 	end
 			end
-			')
+			' 2> /dev/null)
 		;;
 esac
 
